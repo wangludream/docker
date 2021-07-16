@@ -1,0 +1,86 @@
+version: '3'    # 定义版本，不指定默认为版本 1，新版本功能更多
+services:       # 容器
+  nginx:
+    restart: always
+    image: nginx:alpine
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ${APP_CONFIG}/nginx/conf.d:/etc/nginx/conf.d
+      - ${APP_LOGS}/nginx/log:/var/log/nginx
+      - ${APP_DATA}/nginx/static:/usr/share/nginx/html
+      - ${APP_CONFIG}/nginx/letsencrypt:/etc/letsencrypt
+    networks:
+      dockerapp:
+        ipv4_address: 172.19.1.4
+
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    volumes:
+      - ${APP_CONFIG}/redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - ${APP_CONFIG}/redis/data:/data
+    command:
+      redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      dockerapp:
+        ipv4_address: 172.19.1.10
+
+  jenkins:
+    image: 'jenkinsci/blueocean'    # 镜像
+    container_name: jenkins         # 容器名称
+    privileged: true                            # 解决权限问题
+    restart: always                 # 同 --restart 参数
+    ports:                          # 端口映射，同 -p 参数，本地端口:容器端口
+      - '8080:8080'
+      - '50000:50000'
+    volumes:                        # 数据卷,本地文件夹:容器文件夹
+      - ${APP_DATA}/jenkins/jenkins_home:/var/jenkins_home
+    networks:
+      dockerapp:
+        ipv4_address: 172.19.1.5
+
+  gogs:
+    container_name: gogs
+    image: docker.io/gogs/gogs:latest
+    hostname: gogs
+    restart: always
+    ports:
+      - "1022:22"
+      - "3000:3000"
+    links:
+      - mysql5
+    volumes:
+      - ${APP_DATA}/gogs/repos/:/data/git/gogs-repositories
+      - ${APP_DATA}/gogs/docker/:/data/docker/gogs 
+    networks:
+      dockerapp:
+        ipv4_address: 172.19.1.6
+ 
+  mysql5:
+    container_name: mysql5
+    image: mysql:5.7
+    hostname: mysql-gogs
+    restart: always
+    ports:
+      - "3306:3306"
+    volumes:
+      - ${APP_DATA}/mysql5.7:/var/lib/mysql
+      - ${APP_CONFIG}/mysql5.7/conf.d:/etc/mysql/conf.d:rw
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL5_ROOT_PWSSWORD}
+    command:
+      --lower_case_table_names=1
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+      --explicit_defaults_for_timestamp=true
+      --sql-mode=STRICT_TRANS_TABLES,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO 
+    networks:
+      dockerapp:
+        ipv4_address: 172.19.1.7
+
+networks:
+  dockerapp:
+    external: true
